@@ -6,3 +6,4 @@
 3. [OpenOCD](https://sourceforge.net/p/openocd/code/ci/master/tree/)
 4. [xpack-qemu-arm](https://xpack.github.io/qemu-arm/)
 5. [emacs](https://www.gnu.org/software/emacs/)
+6. [STM32F4-Discovery](https://www.st.com/en/evaluation-tools/stm32f4discovery.html)
