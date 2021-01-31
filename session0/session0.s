@@ -16,10 +16,7 @@ reset_handler:
 	mov sp, r0
 
 	ldr r0, =_dstart
-	ldr r0, [r0]
-
 	ldr r1, =_dend
-	ldr r1, [r1]
 
 	sub r2,r1,r0
 
@@ -30,17 +27,20 @@ cpy_loop:
 	strb r3, [r0] 
 
 	add r1, r1, #1
-	add r2, r2, #1
+	add r0, r0, #1
 	
 	sub r2, r2, #1
+	cmp r2, #0
 	bne cpy_loop
 	
 
-main:	
-	ldr r7, =0xF00DF00D
-	ldr r8, =0x1337BEEF
+main:
 	ldr r9, =apa
 	ldr r9, [r9]
+
+	ldr r7, =0xF00DF00D
+	ldr r8, =0x1337BEEF
+
 done:	
 	b done
 
