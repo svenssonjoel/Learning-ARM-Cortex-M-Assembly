@@ -9,8 +9,13 @@
 vtable:
 	.word _estack
 	.word reset_handler
-	.size vtable, .-vtable
+	.word 0
+	.word hardfault
+	@ .size vtable, .-vtable
 
+hardfault:
+	b hardfault
+	
 reset_handler:
 	ldr r0, =_estack
 	mov sp, r0

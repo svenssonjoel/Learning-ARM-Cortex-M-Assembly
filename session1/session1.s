@@ -14,11 +14,11 @@ vtable:
 	.word 0
 	.word hard_fault_handler
 
-@.thumb_func	
+.thumb_func	
 hard_fault_handler:
 	b hard_fault_handler
 
-@.thumb_func	
+.thumb_func	
 reset_handler:
 	ldr r0, =_estack
 	mov sp, r0
