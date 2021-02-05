@@ -86,7 +86,4 @@ forever:
 	str r1, [r2]
 	b forever
 
-done:	
-	b done
-
 	.section .data 
