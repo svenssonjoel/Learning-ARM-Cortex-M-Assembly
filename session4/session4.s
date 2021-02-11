@@ -7,7 +7,19 @@
         .global reset_handler
 
         .section .text
-        
+
+        .equ FLASH_ACR,   0x40023c00
+	.equ RCC_CFGR,    0x40023808    
+	.equ RCC_CR,      0x40023800      @ RCC_CR clock control register
+	.equ RCC_PLLCFGR, 0x40023804    
+
+	.equ AHB1ENR,     0x40023830
+
+	.equ GPIOA_MODER, 0x40020000
+	.equ GPIOA_OUT,   0x40020014      @ PA output data register
+	.equ GPIOC_MODER, 0x40020800
+	.equ GPIOC_AFRH,  0x40020824      @ GPIOC Alternate function register (high)
+	
 vtable:
         .word _estack
         .word reset_handler
@@ -40,7 +52,7 @@ reset_handler:
 
         sub r2,r1,r0
         cmp r2, 0
-	beq main 
+	beq reset_continue 
 
 	ldr r1, =_flash_dstart  @ Address to copy from
 	
@@ -59,47 +71,39 @@ cpy_loop:
 reset_continue:	
 	@ Try some clock stuff
 
-	ldr r0, =0x40023c00     @ FLASH ACR
+	ldr r0, =FLASH_ACR     
 	ldr r1, [r0]            @ should be zeroes after reset
 	ldr r2, =0x105
 	orr r1, r1, r2          @ 5 wait states
 	str r1, [r0]
 
 	@ RCC_CFGR
-	ldr r0, =0x40023808     @ RCC_CFGR
-	ldr r1, =0x00000000
+	ldr r0, =RCC_CFGR 
+	mov r1, 0
 	mov r2, 0x7             @ Divide by 5
 	lsl r2, r2, 27          @ MCO2
 	orr r1, r1, r2         
 
-	mov r2, 0x5
+	mov r2, 0x5             @ PPRE1 (DIV 4)
 	lsl r2, 10
 	orr r1, r1, r2
 
-	mov r2, 0x4
+	mov r2, 0x4             @ PPRE0 (DIV 2)
 	lsl r2, 13
 	orr r1, r1, r2
 
-	mov r2, 0x0
-	lsl r2, 4
-	orr r1, r1, r2
 	str r1, [r0]		
-
-
 	
 	@ RCC_CR ** TURN on HSE 
-	ldr r0, =0x40023800     @ RCC_CR clock control register
+	ldr r0, =RCC_CR
 	ldr r1, [r0]
 	
-	@ mov r1, 0x83          @ Reset value of this register
-	@ mov r1, 0
-	@ldr r3, =0xFFFBFFFF
 	ldr r2, =0x00010000     @ HSE_ON bit
 	orr r1, r1, r2
-	@and r1, r1, r3
 	str r1, [r0]
-	ldr r2, =0x00020000     @ HSE_RDY flag
 
+	@ Wait for HSE_RDY to be set 
+	ldr r2, =0x00020000     @ HSE_RDY flag
 wait_hse_rdy:
 	ldr r1, [r0]            @ poll RCC_RC
 	and r1, r1, r2
@@ -108,22 +112,21 @@ wait_hse_rdy:
 
 
 	@ PLLCFGR 
-	ldr r0, =0x40023804     @ RCC_PLLCFGR
+	ldr r0, =RCC_PLLCFGR
 	ldr r1, [r0]
 
-	ldr r2, =0xF0BC8000
-	and r1, r1, r2
+	ldr r2, =0xF0BC8000     @ Bits that should be kept at reset value 
+	and r1, r1, r2          @ Clear everything else
 	
-	mov r2, 336            @ multiplication factor
-	lsl r2, r2, 6
+	mov r2, 336             @ multiplication factor
+	lsl r2, r2, 6           @ PLLN 
 	orr r1, r1, r2
 	
-	mov r2, 8               @ division on input 
-	orr r1, r1, r2        
+	mov r2, 8               @ division on input (PLLM)
+	orr r1, r1, r2          
 
-	@ PLLQ
 	mov r2, 7               @ Division factor usb 
-	lsl r2, r2, 24
+	lsl r2, r2, 24          @ PLLQ
 	orr r1, r1, r2
 
 	@ PLLP  (set to 00 gives div by 2)
@@ -136,13 +139,15 @@ wait_hse_rdy:
 
 	str r1, [r0]			
 
-	ldr r0, =0x40023800     @ RCC_CR
+	ldr r0, =RCC_CR
 	ldr r1, [r0]
 
 	ldr r2, =0x01000000     @ PLL enable bit
 	orr r1, r1, r2
 	orr r1, r1, r4
 	str r1, [r0]
+
+	@ Wait for PLL_RDY flag to be set
 	ldr r2, =0x02000000     @ PLL rdy mask
 wait_pll_rdy:
 	ldr r1, [r0]
@@ -150,30 +155,29 @@ wait_pll_rdy:
 	cmp r1, r2
 	bne wait_pll_rdy
 
-@ Set PLL as source for sysclk	
-	ldr r0, =0x40023808     @ RCC_CFGR
+	@ Set PLL as source for sysclk	
+	ldr r0, =RCC_CFGR
 	ldr r1, [r0]
 	orr r1, r1, 0x2         @ PLL as source for SYSCLK
-
 	str r1, [r0]
-	
+
+	@ Wait for sw flags to indicate PLL is used for SYSCLK
 wait_use_pll:
 	ldr r1, [r0]
 	and r1, r1, 0xC         @ System clock switch status bits
 	cmp r1, 0x8             @ Is PLL used as SYSCLK?
 	bne wait_use_pll
-	
-	
+		
 
 main:
-        ldr r1, =0x40023830     @ AHB1ENR
+        ldr r1, =AHB1ENR
         ldr r0, [r1]
         orr r0, 0x1             @ Turn on GPIO A
 	orr r0, 0x4             @ Turn on GPIO C
         str r0, [r1]            @ Make it happen
 
 	
-	ldr r0, =0x40020800     @GPIO C MODER
+	ldr r0, =GPIOC_MODER    @ PC9 alternative function mode
 	ldr r1, [r0]
 	ldr r2, =0xFFF3FFFF
 	and r1, r1, r2
@@ -182,13 +186,13 @@ main:
 	orr r1, r1 ,r2
 	str r1, [r0]
 
-	ldr r0, =0x40020824
+	ldr r0, =GPIOC_AFRH     @ PC9 alternative function 0
 	ldr r1, [r0]
 	ldr r2, =0xFFFFFFF0F
 	and r1, r1, r2
 	str r1, [r0]
 	
-        ldr r1, =0x40020000     @ Pointer to PA MODER
+        ldr r1, =GPIOA_MODER
         ldr r0, [r1]            @ Value of PA MODER
         ldr r2, =0xFFFFFF00
         and r0, r0, r2
@@ -196,10 +200,7 @@ main:
         str r0, [r1]            @ Write back PA MODER   
                 
 
-        
-        ldr r2,=led_states      @ Load led_states array address
-        ldr r6,=led_states_end  @ Load led_states array end address
-        ldr r3,=0x40020014      @ PA output data register
+        ldr r3,=GPIOA_OUT
         ldr r5,=0xFFFFFF00      @ Clear-mask for bits of interest
 
 	mov r1, 0xF
@@ -212,7 +213,3 @@ forever:
         b forever
 
         .section .data 
-
-led_states:     .byte 0x1, 0x2, 0x4, 0x8, 0xF, 0x0
-        @ led_states could have been stored in flash as it is constant. 
-led_states_end: 
