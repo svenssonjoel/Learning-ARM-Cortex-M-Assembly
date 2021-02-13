@@ -158,7 +158,6 @@ wait_hse_rdy:
 
         ldr r2, =RCC_CR_PLL_ENABLE_BIT
         orr r1, r1, r2
-        orr r1, r1, r4
         str r1, [r0]
 
         @ Wait for PLL_RDY flag to be set
